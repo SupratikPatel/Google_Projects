@@ -49,12 +49,36 @@ def split_transcript_into_documents(transcript_text):
     return split_documents
 
 # Streamlit frontend
-st.title("YouTube Transcript to Detailed Notes Converter")
+st.set_page_config(page_title="YouTube Summarizer and QnA", layout="wide")
+st.markdown(
+    """
+    <style>
+    .main {
+        background-color: #f0f2f6;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 12px;
+        padding: 10px 24px;
+    }
+    .stTextInput>div>div>input {
+        border-radius: 12px;
+        padding: 10px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+st.title("YouTube Summarizer and QnA")
 youtube_link = st.text_input("Enter YouTube Video Link:")
 
 if youtube_link:
     video_id = youtube_link.split("=")[1]
-    st.image(f"http://img.youtube.com/vi/{video_id}/0.jpg", use_column_width=True)
+    col1, col2, col3 = st.columns([1, 4, 1])  # Adjusted column widths to make the video area 20% wider
+    with col2:
+        st.video(youtube_link)
 
 if st.button("Get Detailed Notes"):
     transcript_text = extract_transcript_details(youtube_link)
@@ -64,8 +88,11 @@ if st.button("Get Detailed Notes"):
         st.session_state.documents = documents
         # Generate summary with timestamps
         summary = generate_summary_with_timestamps(transcript_text)
-        st.markdown("## Summary with Timestamps:")
-        st.write(summary)
+        st.session_state.summary = summary
+
+if "summary" in st.session_state:
+    st.markdown("## Summary with Timestamps:")
+    st.write(st.session_state.summary)
 
 embedding_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 question = st.text_input("Ask a question about the video:")
