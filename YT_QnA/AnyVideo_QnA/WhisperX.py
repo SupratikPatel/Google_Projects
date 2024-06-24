@@ -1,8 +1,6 @@
 import os
 from pytube import YouTube
 from moviepy.editor import VideoFileClip
-from google.cloud import speech_v1p1beta1 as speech
-from google.cloud import storage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import ConversationalRetrievalChain, LLMChain
 from langchain.prompts import PromptTemplate
@@ -12,12 +10,11 @@ from langchain.schema import Document
 import streamlit as st
 from dotenv import load_dotenv
 from youtube_transcript_api import YouTubeTranscriptApi
-from pydub import AudioSegment
-import wave
-from langchain_groq import ChatGroq
-from langchain_community.chat_models import ChatPerplexity
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
+from pydub import AudioSegment
+import whisperx
+import torch
 
 # Load environment variables
 load_dotenv()
@@ -25,14 +22,10 @@ load_dotenv()
 # Configure Google Generative AI
 genai_api_key = os.getenv("GOOGLE_API_KEY")
 project_id = os.getenv("GOOGLE_CLOUD_PROJECT")  # Ensure this is set in your environment
-groq_api_key = os.getenv("GROQ_API_KEY")
-os.environ["PPLX_API_KEY"] = os.getenv("PPLX_API_KEY")
 
-# Initialize LangChain with Groq API
-llm1 = ChatGroq(model="llama3-8b-8192", groq_api_key=groq_api_key)
 # Initialize LangChain with Google Generative AI
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=genai_api_key)
-llm2 = ChatPerplexity(model="llama-3-sonar-large-32k-online")
+
 # Function to extract transcript details from YouTube video
 def extract_transcript_details(youtube_video_url):
     try:
@@ -43,33 +36,16 @@ def extract_transcript_details(youtube_video_url):
     except Exception as e:
         raise e
 
-
-# Function to transcribe audio using Google Cloud Speech-to-Text
-def transcribe_audio(audio_path):
-    client = speech.SpeechClient()
-    storage_client = storage.Client(project=project_id)
-    bucket_name = "exampleytsummarizer"  # Replace with your bucket name
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(os.path.basename(audio_path))
-    blob.upload_from_filename(audio_path)
-    gcs_uri = f"gs://{bucket_name}/{os.path.basename(audio_path)}"
-
-    with wave.open(audio_path, "rb") as wave_file:
-        sample_rate = wave_file.getframerate()
-
-    audio = speech.RecognitionAudio(uri=gcs_uri)
-    config = speech.RecognitionConfig(
-        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
-        sample_rate_hertz=sample_rate,
-        language_code="en-US",
-    )
-
-    operation = client.long_running_recognize(config=config, audio=audio)
-    response = operation.result(timeout=90)
-
-    transcription = ' '.join([result.alternatives[0].transcript for result in response.results])
+# Function to transcribe audio using WhisperX
+def transcribe_audio_whisperx(audio_path):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = whisperx.load_model("large-v2", device)
+    audio = whisperx.load_audio(audio_path)
+    result = model.transcribe(audio)
+    model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device)
+    result = whisperx.align(result["segments"], model_a, metadata, audio, device)
+    transcription = ' '.join([segment['text'] for segment in result['segments']])
     return transcription
-
 
 # Function to extract audio from video and convert to mono
 def extract_audio(video_path, audio_path='audio.wav'):
@@ -80,7 +56,6 @@ def extract_audio(video_path, audio_path='audio.wav'):
     audio.export(audio_path, format="wav")
     return audio_path
 
-
 # Function to generate summary with timestamps
 def generate_summary_with_timestamps(transcript_text):
     summary_prompt = PromptTemplate.from_template(
@@ -90,14 +65,12 @@ def generate_summary_with_timestamps(transcript_text):
     summary = summary_chain.run({"transcript": transcript_text})
     return summary
 
-
 # Function to split transcript into documents
 def split_transcript_into_documents(transcript_text):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     documents = [Document(page_content=transcript_text)]
     split_documents = text_splitter.split_documents(documents)
     return split_documents
-
 
 # Streamlit frontend
 st.set_page_config(page_title="YouTube Summarizer and QnA", layout="wide")
@@ -144,7 +117,7 @@ if st.button("Get Detailed Notes"):
         transcript_text = extract_transcript_details(youtube_link)
     elif uploaded_file:
         audio_path = extract_audio("uploaded_file")
-        transcript_text = transcribe_audio(audio_path)
+        transcript_text = transcribe_audio_whisperx(audio_path)
     else:
         transcript_text = None
 
@@ -166,13 +139,11 @@ if st.button("Ask Question"):
     if question:
         retriever = FAISS.from_documents(st.session_state.documents, embedding_model).as_retriever()
         combine_docs_chain = StuffDocumentsChain(
-            llm_chain=LLMChain(llm=llm2, prompt=PromptTemplate.from_template(
-                "Answer the question based on the context: {context}")),
+            llm_chain=LLMChain(llm=llm, prompt=PromptTemplate.from_template("Answer the question based on the context: {context}")),
             document_prompt=PromptTemplate.from_template("{page_content}"),
             document_variable_name="context"
         )
-        question_generator_chain = LLMChain(llm=llm2, prompt=PromptTemplate.from_template(
-            "Generate a question based on the context: {context}"))
+        question_generator_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template("Generate a question based on the context: {context}"))
         retrieval_chain = ConversationalRetrievalChain(
             combine_docs_chain=combine_docs_chain,
             retriever=retriever,
