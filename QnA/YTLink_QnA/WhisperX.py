@@ -15,6 +15,8 @@ from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from pydub import AudioSegment
 import whisperx
 import torch
+from langchain_groq import ChatGroq
+from langchain_community.chat_models import ChatPerplexity
 
 # Load environment variables
 load_dotenv()
@@ -22,9 +24,14 @@ load_dotenv()
 # Configure Google Generative AI
 genai_api_key = os.getenv("GOOGLE_API_KEY")
 project_id = os.getenv("GOOGLE_CLOUD_PROJECT")  # Ensure this is set in your environment
+groq_api_key = os.getenv("GROQ_API_KEY")
+os.environ["PPLX_API_KEY"] = os.getenv("PPLX_API_KEY")
 
+# Initialize LangChain with Groq API
+llm1 = ChatGroq(model="llama3-8b-8192", groq_api_key=groq_api_key)
 # Initialize LangChain with Google Generative AI
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", google_api_key=genai_api_key)
+llm2 = ChatPerplexity(model="llama-3-sonar-large-32k-online")
 
 # Function to extract transcript details from YouTube video
 def extract_transcript_details(youtube_video_url):
