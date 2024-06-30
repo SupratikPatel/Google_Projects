@@ -12,7 +12,7 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 prompt = """You are Youtube video summarizer. You will be taking the transcript text
 and summarizing the entire video and providing the important summary in points
-within 250 words. Please provide the summary of the text given here:  """
+within 250 words with the timestamps of important topics. Please provide the summary of the text given here:  """
 
 
 # getting the transcript data from yt videos
@@ -34,7 +34,7 @@ def extract_transcript_details(youtube_video_url):
 
 ## getting the summary based on Prompt from Google Gemini Pro
 def generate_gemini_content(transcript_text, prompt):
-    model = genai.GenerativeModel("gemini-pro")
+    model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content(prompt + transcript_text)
     return response.text
 
