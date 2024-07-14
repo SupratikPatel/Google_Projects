@@ -65,7 +65,7 @@ def transcribe_audio(audio_path):
     )
 
     operation = client.long_running_recognize(config=config, audio=audio)
-    response = operation.result(timeout=90)
+    response = operation.result(timeout=900)
 
     transcription = ' '.join([result.alternatives[0].transcript for result in response.results])
     return transcription
@@ -84,7 +84,10 @@ def extract_audio(video_path, audio_path='audio.wav'):
 # Function to generate summary with timestamps
 def generate_summary_with_timestamps(transcript_text):
     summary_prompt = PromptTemplate.from_template(
-        "Summarize the following transcript and include important timestamps:\n\n{transcript}"
+        "Summarize the following transcript and include important timestamps"
+        "Look through each frame in the video carefully and answer the question."
+        "Only base your answers strictly on what information is available in the video attached."
+        "Do not make up any information that is not part of the video and do not be too verbose:\n\n{transcript}"
     )
     summary_chain = LLMChain(llm=llm, prompt=summary_prompt)
     summary = summary_chain.run({"transcript": transcript_text})
@@ -166,12 +169,12 @@ if st.button("Ask Question"):
     if question:
         retriever = FAISS.from_documents(st.session_state.documents, embedding_model).as_retriever()
         combine_docs_chain = StuffDocumentsChain(
-            llm_chain=LLMChain(llm=llm2, prompt=PromptTemplate.from_template(
+            llm_chain=LLMChain(llm=llm, prompt=PromptTemplate.from_template(
                 "Answer the question based on the context: {context}")),
             document_prompt=PromptTemplate.from_template("{page_content}"),
             document_variable_name="context"
         )
-        question_generator_chain = LLMChain(llm=llm2, prompt=PromptTemplate.from_template(
+        question_generator_chain = LLMChain(llm=llm, prompt=PromptTemplate.from_template(
             "Generate a question based on the context: {context}"))
         retrieval_chain = ConversationalRetrievalChain(
             combine_docs_chain=combine_docs_chain,

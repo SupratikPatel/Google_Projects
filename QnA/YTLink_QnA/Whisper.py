@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from youtube_transcript_api import YouTubeTranscriptApi
 from pydub import AudioSegment
 import torch
+from langchain_groq import ChatGroq
+from langchain_community.chat_models import ChatPerplexity
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 # Load environment variables

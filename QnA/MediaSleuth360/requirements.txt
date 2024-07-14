@@ -1,0 +1,6 @@
+groq
+moviepy==1.0.3
+streamlit
+google.generativeai
+IPython
+
