@@ -46,7 +46,7 @@ pipe = pipeline(
 def extract_transcript_details(youtube_video_url):
     try:
         video_id = youtube_video_url.split("=")[1]
-        transcript_text = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript_text = YouTubeTranscriptApi.get_transcript(video_id)git
         transcript = " ".join([i["text"] for i in transcript_text])
         return transcript
     except Exception as e:

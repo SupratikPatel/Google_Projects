@@ -91,6 +91,7 @@ def generate_summary_with_timestamps(transcript_text):
     )
     summary_chain = LLMChain(llm=llm, prompt=summary_prompt)
     summary = summary_chain.run({"transcript": transcript_text})
+    print(transcript_text)
     return summary
 
 
@@ -170,7 +171,8 @@ if st.button("Ask Question"):
         retriever = FAISS.from_documents(st.session_state.documents, embedding_model).as_retriever()
         combine_docs_chain = StuffDocumentsChain(
             llm_chain=LLMChain(llm=llm, prompt=PromptTemplate.from_template(
-                "Answer the question based on the context: {context}")),
+                "Answer the question based on the context only and just reply "
+                "   ""Question is out of context"" if its not present in the transcript: {context}")),
             document_prompt=PromptTemplate.from_template("{page_content}"),
             document_variable_name="context"
         )
@@ -187,7 +189,7 @@ if st.button("Ask Question"):
         st.write(response['answer'])
 
         # With a streamlit expander
-        with st.expander("Document Similarity Search"):
+        with st.expander("Transcript Snippets"):
             # Find the relevant chunks
             for i, doc in enumerate(response["source_documents"]):
                 st.write(doc.page_content)
